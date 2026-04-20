@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}{{ module.name }} — Claw Dashboard{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ module.icon or '📊' }} {{ module.name }}</h1>
+
+{% if widgets %}
+<div class="grid">
+    {% for w in widgets %}
+    <div class="card {% if w.widget_type in ['table', 'stat_row'] %}{% endif %}"
+         {% if w.widget_type in ['table'] %}style="grid-column: 1 / -1;"{% endif %}>
+        <div class="card-title">{{ w.title }}</div>
+
+        {% if w.widget_type == 'kpi_card' %}
+            <div class="kpi-value {% if w.config.get('trend') == 'up' %}kpi-up{% elif w.config.get('trend') == 'down' %}kpi-down{% endif %}">
+                {{ w.config.get('prefix', '') }}{{ w.data[0] if w.data else '—' }}{{ w.config.get('suffix', '') }}
+            </div>
+            {% if w.config.get('subtitle') %}
+            <div class="kpi-sub">{{ w.config.subtitle }}</div>
+            {% endif %}
+
+        {% elif w.widget_type in ['line_chart', 'bar_chart'] %}
+            <div class="chart-container">
+                <canvas id="chart-{{ w.id }}"></canvas>
+            </div>
+
+        {% elif w.widget_type == 'pie_chart' %}
+            <div class="chart-container">
+                <canvas id="chart-{{ w.id }}"></canvas>
+            </div>
+
+        {% elif w.widget_type == 'table' %}
+            {% if w.data %}
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            {% for col in w.data[0].keys() %}
+                            <th>{{ col }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in w.data %}
+                        <tr>
+                            {% for val in row.values() %}
+                            <td>{{ val }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color:var(--text2);">No data</p>
+            {% endif %}
+
+        {% elif w.widget_type == 'text' %}
+            <div class="text-widget">{{ w.data[0] if w.data else '' }}</div>
+
+        {% elif w.widget_type == 'stat_row' %}
+            <div class="stat-row">
+                {% for item in w.data %}
+                <div class="stat-item">
+                    <div class="stat-label">{{ item.label }}</div>
+                    <div class="stat-value">{{ item.value }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="icon">{{ module.icon or '📊' }}</div>
+    <h2>No widgets yet</h2>
+    <p style="margin-top:8px;">This module is registered but has no widgets.<br>Your agent will add charts, tables, and cards here.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% for w in widgets %}
+    {% if w.widget_type in ['line_chart', 'bar_chart'] %}
+    (function() {
+        const ctx = document.getElementById('chart-{{ w.id }}');
+        if (!ctx) return;
+        const config = {{ w.config | tojson }};
+        const data = {{ w.data | tojson }};
+        new Chart(ctx, {
+            type: '{{ "line" if w.widget_type == "line_chart" else "bar" }}',
+            data: {
+                labels: config.labels || data.map((_, i) => i),
+                datasets: [{
+                    label: config.dataset_label || '{{ w.title }}',
+                    data: Array.isArray(data[0]) ? data[0] : data,
+                    borderColor: config.color || '#6366f1',
+                    backgroundColor: config.bg_color || 'rgba(99,102,241,0.1)',
+                    borderWidth: 2,
+                    fill: {{ 'true' if w.widget_type == 'line_chart' else 'false' }},
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: '#2a2d3a' }, ticks: { color: '#8b8fa3' } },
+                    y: { grid: { color: '#2a2d3a' }, ticks: { color: '#8b8fa3' } }
+                }
+            }
+        });
+    })();
+    {% elif w.widget_type == 'pie_chart' %}
+    (function() {
+        const ctx = document.getElementById('chart-{{ w.id }}');
+        if (!ctx) return;
+        const config = {{ w.config | tojson }};
+        const data = {{ w.data | tojson }};
+        const colors = config.colors || ['#6366f1','#22c55e','#eab308','#ef4444','#06b6d4','#f97316','#8b5cf6','#ec4899'];
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: config.labels || data.map((_, i) => `Item ${i+1}`),
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors.slice(0, data.length),
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { color: '#e4e6ed' } } }
+            }
+        });
+    })();
+    {% endif %}
+    {% endfor %}
+});
+</script>
+{% endblock %}

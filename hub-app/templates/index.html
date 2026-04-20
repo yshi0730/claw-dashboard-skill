@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Claw Dashboard — Overview{% endblock %}
+{% block content %}
+<h1 class="page-title">Overview</h1>
+
+{% if modules %}
+<div class="grid">
+    {% for m in modules %}
+    <a href="/m/{{ m.id }}" style="text-decoration:none;color:inherit;">
+        <div class="card">
+            <div style="font-size:36px;margin-bottom:12px;">{{ m.icon or '📊' }}</div>
+            <div style="font-size:18px;font-weight:600;margin-bottom:4px;">{{ m.name }}</div>
+            <div style="font-size:13px;color:var(--text2);">Agent: {{ m.agent_id }}</div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="icon">📊</div>
+    <h2>No modules yet</h2>
+    <p style="margin-top:8px;">Your agents will register dashboard modules here.<br>Start chatting with an agent that has dashboard support.</p>
+</div>
+{% endif %}
+{% endblock %}
