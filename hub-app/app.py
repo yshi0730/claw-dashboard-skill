@@ -85,7 +85,7 @@ async def index(request: Request):
     modules = db.execute("SELECT * FROM dashboard_modules ORDER BY created_at").fetchall()
     modules = [dict(m) for m in modules]
     db.close()
-    return templates.TemplateResponse("index.html", {"request": request, "modules": modules})
+    return templates.TemplateResponse(request, "index.html", {"modules": modules})
 
 
 @app.get("/m/{module_id}", response_class=HTMLResponse)
@@ -95,6 +95,9 @@ async def module_page(request: Request, module_id: str):
     if not module:
         return HTMLResponse("<h1>Module not found</h1>", 404)
     module = dict(module)
+
+    modules = db.execute("SELECT * FROM dashboard_modules ORDER BY created_at").fetchall()
+    modules = [dict(m) for m in modules]
 
     widgets = db.execute(
         "SELECT * FROM dashboard_widgets WHERE module_id = ? ORDER BY position", (module_id,)
@@ -106,8 +109,8 @@ async def module_page(request: Request, module_id: str):
         wd["data"] = json.loads(wd["data"])
         widget_list.append(wd)
     db.close()
-    return templates.TemplateResponse("module.html", {
-        "request": request, "module": module, "widgets": widget_list,
+    return templates.TemplateResponse(request, "module.html", {
+        "module": module, "modules": modules, "widgets": widget_list,
     })
 
 
