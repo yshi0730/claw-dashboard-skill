@@ -9,14 +9,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script>
-        // Theme toggle - load before render to prevent flash
+        // Theme + language — load before render to prevent flash
         (function() {
-            const saved = localStorage.getItem('claw-theme');
-            if (saved === 'light') {
-                document.documentElement.classList.add('light');
-            } else {
-                document.documentElement.classList.add('dark');
-            }
+            const theme = localStorage.getItem('claw-theme');
+            document.documentElement.classList.add(theme === 'light' ? 'light' : 'dark');
+
+            const lang = localStorage.getItem('claw-lang') ||
+                (navigator.language.startsWith('zh') ? 'zh' : 'en');
+            document.documentElement.setAttribute('data-lang', lang);
         })();
     </script>
     <script>
@@ -59,8 +59,65 @@
             },
         }
     </script>
+    <script>
+        // i18n labels — UI chrome only, not data content
+        const I18N = {
+            en: {
+                overview: "OVERVIEW",
+                agents: "Agents",
+                system_online: "System Online",
+                system_active: "System Active",
+                powered_by: "Powered by Claw Dashboard",
+                agent_dashboard: "AGENT DASHBOARD",
+                overview_title: "Overview",
+                overview_subtitle: "Your AI agents and their operational status.",
+                no_agents: "No agents registered yet",
+                no_agents_hint: "Start chatting with an agent that has dashboard support.",
+                no_widgets: "No widgets yet",
+                no_widgets_hint: "Your agent will add content here.",
+                active: "Active",
+                running: "RUNNING",
+                paused: "PAUSED",
+                live: "LIVE",
+                ai_reasoning: "AI REASONING",
+                no_data: "No data yet",
+                no_activity: "No activity yet",
+            },
+            zh: {
+                overview: "总览",
+                agents: "智能体",
+                system_online: "系统在线",
+                system_active: "系统运行中",
+                powered_by: "Claw Dashboard 驱动",
+                agent_dashboard: "智能体面板",
+                overview_title: "总览",
+                overview_subtitle: "你的 AI 智能体及其运行状态。",
+                no_agents: "暂无已注册的智能体",
+                no_agents_hint: "请先与支持 Dashboard 的智能体对话。",
+                no_widgets: "暂无组件",
+                no_widgets_hint: "你的智能体会在这里添加内容。",
+                active: "运行中",
+                running: "运行中",
+                paused: "已暂停",
+                live: "实盘",
+                ai_reasoning: "AI 决策逻辑",
+                no_data: "暂无数据",
+                no_activity: "暂无记录",
+            }
+        };
+        function t(key) {
+            const lang = document.documentElement.getAttribute('data-lang') || 'en';
+            return (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+        }
+        function applyI18n() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t(el.getAttribute('data-i18n'));
+            });
+        }
+        document.addEventListener('DOMContentLoaded', applyI18n);
+    </script>
     <style>
-        /* Dark mode card */
+        /* Dark mode card */</style>
         .dark .glass-card {
             background: rgba(22, 27, 34, 0.7);
             backdrop-filter: blur(20px);
@@ -121,7 +178,7 @@
                 text-slate-500 hover:bg-slate-50 hover:text-slate-900
                 {% endif %}">
                 <span class="material-symbols-outlined text-lg">home</span>
-                OVERVIEW
+                <span data-i18n="overview">OVERVIEW</span>
             </a>
 
             {% for m in modules %}
@@ -145,7 +202,7 @@
             <div class="w-2 h-2 rounded-full bg-lm-primary-container dark:bg-dm-primary-container
                 dark:shadow-[0_0_8px_#00FF85] led-glow
                 animate-pulse"></div>
-            <span class="text-[10px] font-display tracking-widest uppercase dark:text-zinc-500 text-slate-400">System Online</span>
+            <span class="text-[10px] font-display tracking-widest uppercase dark:text-zinc-500 text-slate-400" data-i18n="system_online">System Online</span>
         </div>
     </div>
 </nav>
@@ -155,7 +212,15 @@
     dark:bg-transparent
     bg-white/80 backdrop-blur-xl border-b border-slate-200 dark:border-transparent"
     style="left: 256px;">
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2">
+        <!-- Language Toggle -->
+        <button onclick="toggleLang()" class="px-3 py-1.5 rounded-full transition-colors text-xs font-display font-bold tracking-wider
+            dark:hover:bg-white/10 dark:text-zinc-400
+            hover:bg-slate-100 text-slate-500"
+            title="Switch language / 切换语言"
+            id="lang-toggle-btn">
+            EN
+        </button>
         <!-- Theme Toggle -->
         <button onclick="toggleTheme()" class="p-2 rounded-full transition-colors
             dark:hover:bg-white/10 dark:text-zinc-400
@@ -186,9 +251,24 @@ function toggleTheme() {
         html.classList.add('dark');
         localStorage.setItem('claw-theme', 'dark');
     }
-    // Charts need re-render for color update — reload page
     location.reload();
 }
+function toggleLang() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-lang') || 'en';
+    const next = current === 'en' ? 'zh' : 'en';
+    html.setAttribute('data-lang', next);
+    localStorage.setItem('claw-lang', next);
+    // Update button label
+    document.getElementById('lang-toggle-btn').textContent = next === 'en' ? 'EN' : '中';
+    // Re-apply i18n
+    applyI18n();
+}
+// Set initial button label
+document.addEventListener('DOMContentLoaded', function() {
+    const lang = document.documentElement.getAttribute('data-lang') || 'en';
+    document.getElementById('lang-toggle-btn').textContent = lang === 'en' ? 'EN' : '中';
+});
 </script>
 {% block scripts %}{% endblock %}
 </body>

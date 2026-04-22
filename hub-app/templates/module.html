@@ -48,7 +48,7 @@
                         <div class="w-1.5 h-1.5 rounded-full {% if s.status == 'active' %}dark:bg-dm-primary-container bg-lm-primary-container{% else %}dark:bg-zinc-500 bg-slate-400{% endif %}"></div>
                         <span class="text-[9px] font-display tracking-widest uppercase
                             {% if s.status == 'active' %}dark:text-dm-primary-container text-lm-primary{% else %}dark:text-zinc-400 text-slate-500{% endif %}">
-                            {% if s.status == 'active' %}RUNNING{% else %}PAUSED{% endif %}
+                            <span {% if s.status == 'active' %}data-i18n="running"{% else %}data-i18n="paused"{% endif %}>{% if s.status == 'active' %}RUNNING{% else %}PAUSED{% endif %}</span>
                         </span>
                     </div>
                 </div>
@@ -140,7 +140,7 @@
                 </div>
                 {% if item.logic %}
                 <div class="ml-[88px] mt-2 pl-4 dark:border-l-2 dark:border-accent-blue/30 border-l-2 border-blue-200">
-                    <p class="text-[10px] font-display tracking-widest uppercase dark:text-accent-blue text-blue-500 mb-1">AI REASONING</p>
+                    <p class="text-[10px] font-display tracking-widest uppercase dark:text-accent-blue text-blue-500 mb-1" data-i18n="ai_reasoning">AI REASONING</p>
                     <p class="text-sm dark:text-zinc-400 text-slate-500 leading-relaxed">{{ item.logic }}</p>
                 </div>
                 {% endif %}
@@ -174,7 +174,7 @@
                         <td class="px-8 py-5 text-data-mono text-[13px] dark:text-white text-lm-on-surface">
                             {% if key in ['Logic', '交易逻辑', 'Reasoning'] %}
                             <div class="pl-3 max-w-lg dark:border-l-2 dark:border-accent-blue/30 border-l-2 border-blue-200">
-                                <p class="text-[10px] font-display tracking-widest uppercase dark:text-accent-blue text-blue-500 mb-1">AI REASONING</p>
+                                <p class="text-[10px] font-display tracking-widest uppercase dark:text-accent-blue text-blue-500 mb-1" data-i18n="ai_reasoning">AI REASONING</p>
                                 <p class="text-sm dark:text-zinc-400 text-slate-500 leading-relaxed font-body">{{ val }}</p>
                             </div>
                             {% elif key in ['Action', '方向'] %}
@@ -211,9 +211,9 @@
 <footer class="mt-12 mb-6 flex justify-between items-center px-2">
     <div class="flex items-center gap-2">
         <span class="w-2 h-2 rounded-full dark:bg-dm-primary-container bg-lm-primary-container dark:shadow-[0_0_8px_#00FF85] led-glow"></span>
-        <span class="text-[10px] font-display tracking-widest uppercase dark:text-zinc-500 text-slate-400">System Active</span>
+        <span class="text-[10px] font-display tracking-widest uppercase dark:text-zinc-500 text-slate-400" data-i18n="system_active">System Active</span>
     </div>
-    <span class="text-[10px] font-display tracking-widest uppercase dark:text-zinc-600 text-slate-400">Powered by Claw Dashboard</span>
+    <span class="text-[10px] font-display tracking-widest uppercase dark:text-zinc-600 text-slate-400" data-i18n="powered_by">Powered by Claw Dashboard</span>
 </footer>
 {% endblock %}
 

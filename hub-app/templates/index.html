@@ -2,9 +2,9 @@
 {% block title %}Claw Dashboard — Overview{% endblock %}
 {% block content %}
 <div class="mb-10">
-    <span class="text-label-caps dark:text-zinc-400 text-slate-400 mb-2 block font-display">AGENT DASHBOARD</span>
-    <h1 class="text-h1 font-display uppercase dark:text-white text-lm-on-surface">Overview</h1>
-    <p class="dark:text-zinc-500 text-slate-500 text-base mt-2">Your AI agents and their operational status.</p>
+    <span class="text-label-caps dark:text-zinc-400 text-slate-400 mb-2 block font-display" data-i18n="agent_dashboard">AGENT DASHBOARD</span>
+    <h1 class="text-h1 font-display uppercase dark:text-white text-lm-on-surface" data-i18n="overview_title">Overview</h1>
+    <p class="dark:text-zinc-500 text-slate-500 text-base mt-2" data-i18n="overview_subtitle">Your AI agents and their operational status.</p>
 </div>
 
 {% if modules %}
@@ -19,7 +19,7 @@
                 dark:bg-dm-primary-container/10
                 bg-emerald-50">
                 <div class="w-1.5 h-1.5 rounded-full dark:bg-dm-primary-container bg-lm-primary-container"></div>
-                <span class="text-[9px] font-display tracking-widest uppercase dark:text-dm-primary-container text-lm-primary">Active</span>
+                <span class="text-[9px] font-display tracking-widest uppercase dark:text-dm-primary-container text-lm-primary" data-i18n="active">Active</span>
             </div>
         </div>
         <h3 class="text-h3 font-display mb-1 dark:text-white text-lm-on-surface">{{ m.name }}</h3>
@@ -30,8 +30,8 @@
 {% else %}
 <div class="text-center py-24">
     <span class="material-symbols-outlined text-5xl dark:text-zinc-700 text-slate-300 mb-4 block">widgets</span>
-    <h2 class="text-xl font-display dark:text-zinc-400 text-slate-500">No agents registered yet</h2>
-    <p class="dark:text-zinc-600 text-slate-400 mt-2">Start chatting with an agent that has dashboard support.</p>
+    <h2 class="text-xl font-display dark:text-zinc-400 text-slate-500" data-i18n="no_agents">No agents registered yet</h2>
+    <p class="dark:text-zinc-600 text-slate-400 mt-2" data-i18n="no_agents_hint">Start chatting with an agent that has dashboard support.</p>
 </div>
 {% endif %}
 {% endblock %}
