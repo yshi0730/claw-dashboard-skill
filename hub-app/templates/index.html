@@ -1,25 +1,37 @@
 {% extends "base.html" %}
 {% block title %}Claw Dashboard — Overview{% endblock %}
 {% block content %}
-<h1 class="page-title">Overview</h1>
+<div class="mb-10">
+    <span class="text-label-caps dark:text-zinc-400 text-slate-400 mb-2 block font-display">AGENT DASHBOARD</span>
+    <h1 class="text-h1 font-display uppercase dark:text-white text-lm-on-surface">Overview</h1>
+    <p class="dark:text-zinc-500 text-slate-500 text-base mt-2">Your AI agents and their operational status.</p>
+</div>
 
 {% if modules %}
-<div class="grid">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for m in modules %}
-    <a href="/m/{{ m.id }}" style="text-decoration:none;color:inherit;">
-        <div class="card">
-            <div style="font-size:36px;margin-bottom:12px;">{{ m.icon or '📊' }}</div>
-            <div style="font-size:18px;font-weight:600;margin-bottom:4px;">{{ m.name }}</div>
-            <div style="font-size:13px;color:var(--text2);">Agent: {{ m.agent_id }}</div>
+    <a href="/m/{{ m.id }}" class="glass-card rounded-xl p-8 transition-all duration-200 group cursor-pointer block
+        dark:hover:border-dm-primary-container/20
+        hover:border-lm-primary hover:shadow-md">
+        <div class="flex justify-between items-start mb-6">
+            <div class="text-3xl">{{ m.icon or '◎' }}</div>
+            <div class="flex items-center gap-1.5 px-2 py-1 rounded
+                dark:bg-dm-primary-container/10
+                bg-emerald-50">
+                <div class="w-1.5 h-1.5 rounded-full dark:bg-dm-primary-container bg-lm-primary-container"></div>
+                <span class="text-[9px] font-display tracking-widest uppercase dark:text-dm-primary-container text-lm-primary">Active</span>
+            </div>
         </div>
+        <h3 class="text-h3 font-display mb-1 dark:text-white text-lm-on-surface">{{ m.name }}</h3>
+        <p class="text-sm dark:text-zinc-500 text-slate-500 font-display">{{ m.agent_id }}</p>
     </a>
     {% endfor %}
 </div>
 {% else %}
-<div class="empty-state">
-    <div class="icon">📊</div>
-    <h2>No modules yet</h2>
-    <p style="margin-top:8px;">Your agents will register dashboard modules here.<br>Start chatting with an agent that has dashboard support.</p>
+<div class="text-center py-24">
+    <span class="material-symbols-outlined text-5xl dark:text-zinc-700 text-slate-300 mb-4 block">widgets</span>
+    <h2 class="text-xl font-display dark:text-zinc-400 text-slate-500">No agents registered yet</h2>
+    <p class="dark:text-zinc-600 text-slate-400 mt-2">Start chatting with an agent that has dashboard support.</p>
 </div>
 {% endif %}
 {% endblock %}
