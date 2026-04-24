@@ -204,3 +204,56 @@ Access at: `https://device-xxx.clawln.app/static/custom.html`
 ### Option C: Completely replace app.py
 
 If you need full control, replace `~/.claw/hub/app.py` entirely with your own FastAPI app. The tunnel and domain still work — they just proxy to whatever is on port 3000.
+
+## Unregister / Remove Dashboard
+
+If the user wants to remove the dashboard entirely:
+
+### Remove a single agent's module (keep dashboard running for other agents)
+
+```python
+import sqlite3, os
+
+db = sqlite3.connect(os.path.expanduser('~/.claw/shared/shared.db'))
+module_id = "YOUR_MODULE_ID"
+
+# Delete all widgets for this module
+db.execute("DELETE FROM dashboard_widgets WHERE module_id = ?", (module_id,))
+# Delete the module
+db.execute("DELETE FROM dashboard_modules WHERE id = ?", (module_id,))
+db.commit()
+print(f"Module {module_id} removed")
+```
+
+### Shut down dashboard completely (stop hub + tunnel)
+
+```bash
+# Stop hub server
+pkill -f "uvicorn app:app" 2>/dev/null
+
+# Stop tunnel
+pkill cloudflared 2>/dev/null
+
+echo "Dashboard stopped"
+```
+
+### Full unregister (delete tunnel + DNS + all local data)
+
+```bash
+# 1. Unregister device from tunnel API
+SERIAL=$(python3 -c "import json,os; print(json.load(open(os.path.expanduser('~/.claw/config/tunnel.json')))['serial'])")
+curl -s -X POST https://api.clawln.app/devices/unregister \
+  -H "Content-Type: application/json" \
+  -d "{\"serial\": \"$SERIAL\"}"
+
+# 2. Stop all processes
+pkill -f "uvicorn app:app" 2>/dev/null
+pkill cloudflared 2>/dev/null
+
+# 3. Remove all local data (optional — ask user first)
+rm -rf ~/.claw/hub ~/.claw/shared ~/.claw/config ~/.claw/dashboard-skill
+
+echo "Dashboard fully unregistered and cleaned up"
+```
+
+**Important**: Always confirm with the user before running the full unregister — this deletes all dashboard data and the public URL permanently.
