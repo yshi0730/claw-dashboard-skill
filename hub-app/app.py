@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 from pathlib import Path
 
@@ -15,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 app = FastAPI(title="Claw Dashboard Hub")
 
 CLAW_DIR = Path.home() / ".claw"
-DB_PATH = Path(os.environ.get("CLAW_SHARED_DB", str(CLAW_DIR / "shared" / "shared.db")))
+DB_PATH = CLAW_DIR / "shared" / "shared.db"
 STATIC_DIR = Path(__file__).parent / "public"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -113,17 +112,6 @@ async def module_page(request: Request, module_id: str):
     return templates.TemplateResponse(request, "module.html", {
         "module": module, "modules": modules, "widgets": widget_list,
     })
-
-
-# ── Fixed per-desk dashboards ──
-try:
-    from routes.us_equity import router as us_equity_router
-
-    app.include_router(us_equity_router)
-except Exception as _e:  # noqa: BLE001 — never block the hub on a desk route
-    import sys
-
-    print(f"[hub] us-equity route not loaded: {_e}", file=sys.stderr)
 
 
 def main():

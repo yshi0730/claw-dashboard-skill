@@ -10,5 +10,3 @@ data/*.db
 .mypy_cache/
 .pytest_cache/
 node_modules/
-
-.venv-test/
