@@ -69,10 +69,23 @@ def _cls(v: float) -> str:
 
 # ── shared.db reads ────────────────────────────────────────────────
 
+def _safe(fn, default):
+    """Run a db read; if the table doesn't exist yet (agent never wrote)
+    return a default instead of raising — fresh device must not 500."""
+    try:
+        return fn()
+    except sqlite3.OperationalError:
+        return default
+
+
 def _get_config(db: sqlite3.Connection, agent_id: str) -> dict[str, str]:
-    rows = db.execute(
-        "SELECT key, value FROM agent_config WHERE agent_id = ?", (agent_id,)
-    ).fetchall()
+    rows = _safe(
+        lambda: db.execute(
+            "SELECT key, value FROM agent_config WHERE agent_id = ?",
+            (agent_id,),
+        ).fetchall(),
+        [],
+    )
     return {r["key"]: r["value"] for r in rows}
 
 
@@ -89,11 +102,14 @@ def read_alpaca_creds(
 
 
 def _strategies(db: sqlite3.Connection, agent_id: str) -> list[dict]:
-    rows = db.execute(
-        "SELECT * FROM strategy_state WHERE agent_id = ? "
-        "ORDER BY (status='running') DESC, updated_at DESC",
-        (agent_id,),
-    ).fetchall()
+    rows = _safe(
+        lambda: db.execute(
+            "SELECT * FROM strategy_state WHERE agent_id = ? "
+            "ORDER BY (status='running') DESC, updated_at DESC",
+            (agent_id,),
+        ).fetchall(),
+        [],
+    )
     out = []
     for r in rows:
         running = r["status"] == "running"
@@ -120,28 +136,34 @@ def _strategies(db: sqlite3.Connection, agent_id: str) -> list[dict]:
 
 def _symbol_strategy_map(db: sqlite3.Connection, agent_id: str) -> dict[str, str]:
     """Latest opening (buy/add) trade per symbol → strategy display name."""
-    rows = db.execute(
-        """
-        SELECT tr.symbol AS symbol, ss.name AS sname,
-               MAX(tr.decided_at) AS latest
-        FROM trade_reasoning tr
-        LEFT JOIN strategy_state ss ON ss.id = tr.strategy_id
-        WHERE tr.agent_id = ? AND tr.action IN ('buy','add')
-        GROUP BY tr.symbol
-        """,
-        (agent_id,),
-    ).fetchall()
+    rows = _safe(
+        lambda: db.execute(
+            """
+            SELECT tr.symbol AS symbol, ss.name AS sname,
+                   MAX(tr.decided_at) AS latest
+            FROM trade_reasoning tr
+            LEFT JOIN strategy_state ss ON ss.id = tr.strategy_id
+            WHERE tr.agent_id = ? AND tr.action IN ('buy','add')
+            GROUP BY tr.symbol
+            """,
+            (agent_id,),
+        ).fetchall(),
+        [],
+    )
     return {r["symbol"]: (r["sname"] or "—") for r in rows}
 
 
 def _reasoning_index(db: sqlite3.Connection, agent_id: str) -> dict:
     """Index trade_reasoning by client/broker order id for feed enrichment,
     plus the recent rows themselves (drives the feed)."""
-    rows = db.execute(
-        "SELECT * FROM trade_reasoning WHERE agent_id = ? "
-        "ORDER BY decided_at DESC LIMIT 30",
-        (agent_id,),
-    ).fetchall()
+    rows = _safe(
+        lambda: db.execute(
+            "SELECT * FROM trade_reasoning WHERE agent_id = ? "
+            "ORDER BY decided_at DESC LIMIT 30",
+            (agent_id,),
+        ).fetchall(),
+        [],
+    )
     by_order: dict[str, dict] = {}
     recent: list[dict] = []
     for r in rows:

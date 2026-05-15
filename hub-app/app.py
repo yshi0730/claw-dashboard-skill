@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 app = FastAPI(title="Claw Dashboard Hub")
 
 CLAW_DIR = Path.home() / ".claw"
-DB_PATH = CLAW_DIR / "shared" / "shared.db"
+DB_PATH = Path(os.environ.get("CLAW_SHARED_DB", str(CLAW_DIR / "shared" / "shared.db")))
 STATIC_DIR = Path(__file__).parent / "public"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 

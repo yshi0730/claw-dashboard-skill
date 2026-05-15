@@ -8,6 +8,7 @@ failure also degrades to an error card, never a raw 500.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import traceback
 from pathlib import Path
@@ -19,8 +20,9 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from services.alpaca_client import AlpacaClient
 from services.us_equity_context import build_context, read_alpaca_creds, AGENT_ID
 
-CLAW_DIR = Path.home() / ".claw"
-DB_PATH = CLAW_DIR / "shared" / "shared.db"
+DB_PATH = Path(
+    os.environ.get("CLAW_SHARED_DB", str(Path.home() / ".claw" / "shared" / "shared.db"))
+)
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 _env = Environment(
