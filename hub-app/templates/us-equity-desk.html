@@ -1,0 +1,388 @@
+{# ============================================================================
+   US Equity Desk — fixed dashboard template (Jinja2)
+
+   Rendered by hub-app route GET /desk/us-equity. Expects one variable `ctx`
+   (a dict) with the shape below. The route (#5) assembles it from
+   AlpacaClient + portfolio_metrics + shared.db; _smoke_template.py builds a
+   mock ctx to verify layout.
+
+   ctx = {
+     meta:    { agent_id, account_number, status, is_paper, mode,
+                authorization_label, skill_version, build_date, generated_at,
+                market_open(bool), market_label, next_session, latency_ms }
+     account: { equity_fmt, cash_fmt, buying_power_fmt, buying_power_mult,
+                day_pl_fmt, day_pl_class, day_pl_pct_fmt }
+     metrics: { ytd_fmt, spy_ytd_fmt, alpha_fmt, sharpe, sortino,
+                max_dd_fmt, var_fmt, beta, net_exposure_fmt,
+                concentration_fmt, concentration_symbol, sharpe_30d }
+     nav:     { fund_line, fund_area, spy_line, spy_area,
+                x_labels:[{x,text}], y_labels:[{y,text}],
+                last_x, last_y, last_label, nav_value, alpha_fmt }
+     strategies: [ { name, status, status_class('run'|'pause'),
+                     pnl_fmt, pnl_class, meta, last_label, last_text } ]
+     holdings: { rows:[ { symbol, strategy, qty, avg_fmt, cur_fmt,
+                          mv_fmt, upl_fmt, upl_class, weight_fmt } ],
+                 total_mv_fmt, total_upl_fmt, total_upl_class,
+                 total_weight_fmt, count }
+     feed:    [ { time, side('buy'|'sell'|'hold'|'add'|'reduce'|'close'),
+                  side_label, symbol, detail, reasoning,
+                  pnl_fmt, pnl_class } ]
+     risk:    [ { k, v, w_pct } ]                # 6 cells
+     guardrails: [ { k, v, meta, ok(bool) } ]    # 8 cells
+   }
+============================================================================ #}
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>US Equity Desk · {{ ctx.meta.agent_id }}</title>
+<style>
+  :root{
+    --bg:#0a1220;--panel:#0f1b31;--panel2:#13233e;--line:#294161;--text:#edf3ff;--muted:#94a9c7;
+    --accent:#4be2ad;--accent2:#43b6ff;--good:#4be2ad;--bad:#ff7f9f;--warn:#ffd777;--chip:#162843;
+  }
+  html[data-theme="light"]{
+    --bg:#eaf0f8;--panel:#ffffff;--panel2:#f4f8ff;--line:#d6e0ee;--text:#0d1730;--muted:#5f7392;
+    --accent:#1d9b72;--accent2:#1d87cf;--good:#1d9b72;--bad:#c1435f;--warn:#ac7a00;--chip:#edf3fb;
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:Inter,-apple-system,'PingFang SC',system-ui,sans-serif;
+    background:radial-gradient(1100px 480px at 12% -10%,rgba(75,226,173,.12),transparent),
+               radial-gradient(900px 420px at 88% 110%,rgba(67,182,255,.08),transparent),
+               var(--bg);color:var(--text);}
+  .app{display:grid;grid-template-columns:230px 1fr;height:100%}
+  .side{border-right:1px solid var(--line);padding:16px;background:linear-gradient(180deg,color-mix(in srgb,var(--panel) 92%,transparent),color-mix(in srgb,var(--panel2) 80%,transparent))}
+  .brand{display:flex;align-items:center;gap:10px;padding:8px 4px 18px;border-bottom:1px solid var(--line);margin-bottom:14px}
+  .brand-mark{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#0a1220}
+  .brand-name{font-weight:800;letter-spacing:.12em;font-size:12.5px}
+  .brand-sub{font-size:9.5px;letter-spacing:.16em;color:var(--muted);margin-top:1px;text-transform:uppercase}
+  .nav-group{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:14px 8px 6px}
+  .nav{display:grid;gap:4px}
+  .nav button{border:0;text-align:left;padding:9px 10px;border-radius:8px;background:transparent;color:var(--muted);font-weight:600;font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:9px}
+  .nav button .ico{width:14px;display:inline-block;text-align:center;font-size:11px}
+  .nav button.active,.nav button:hover{background:var(--chip);color:var(--text)}
+  .nav button.active{box-shadow:inset 2px 0 0 var(--accent)}
+  .auth-pill{display:flex;align-items:center;gap:8px;padding:10px 11px;border-radius:8px;background:var(--chip);margin:6px 0;font-size:11.5px}
+  .auth-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex-shrink:0;box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 18%,transparent);animation:pulse 2.2s ease-in-out infinite}
+  .auth-pill .label{flex:1;color:var(--text);font-weight:600}
+  .auth-pill .mode{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;color:var(--accent);letter-spacing:.04em}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 18%,transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--good) 6%,transparent)}}
+  .main{padding:14px 18px 28px;overflow:auto}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .top-left{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .status{display:flex;gap:8px;align-items:center;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:var(--chip);font-size:11px;color:var(--muted)}
+  .dot-live{width:7px;height:7px;border-radius:50%;background:var(--good);animation:pulse 2.2s ease-in-out infinite}
+  .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:3px}
+  .seg button{border:0;background:transparent;color:var(--muted);font-size:11px;font-weight:700;padding:6px 11px;border-radius:999px;cursor:pointer}
+  .seg button.active{background:var(--panel);color:var(--text)}
+  .chip{border:1px solid var(--line);background:var(--chip);color:var(--text);padding:7px 11px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer}
+  .danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+  .page-title{font-size:22px;font-weight:700;letter-spacing:-0.01em;margin:0;display:flex;align-items:center;gap:10px}
+  .page-title .tag{font-size:10px;font-weight:800;letter-spacing:.1em;background:var(--accent);color:#0a1220;padding:3px 8px;border-radius:4px;text-transform:uppercase}
+  .page-sub{font-size:11.5px;color:var(--muted);margin:3px 0 0;font-family:'JetBrains Mono',ui-monospace,monospace;letter-spacing:.04em}
+  .hero{margin-top:6px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .card{border:1px solid var(--line);background:linear-gradient(140deg,color-mix(in srgb,var(--panel) 96%,transparent),color-mix(in srgb,var(--panel2) 94%,transparent));border-radius:14px;padding:14px;position:relative;overflow:hidden}
+  .card .k{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+  .card .v{margin-top:6px;font-size:26px;font-weight:800;font-family:'JetBrains Mono',ui-monospace,monospace;letter-spacing:-0.02em}
+  .card .meta{margin-top:5px;font-size:11px;color:var(--muted)}
+  .good{color:var(--good)} .bad{color:var(--bad)}
+  .layout{display:grid;grid-template-columns:1.7fr 1fr;gap:12px;margin-top:12px}
+  .row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  .section-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+  .section-title{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text)}
+  .section-sub{font-size:10.5px;color:var(--muted);font-family:'JetBrains Mono',ui-monospace,monospace;letter-spacing:.04em}
+  .nav-chart{border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--chip) 50%,transparent);height:280px;margin-top:8px;position:relative}
+  .nav-chart svg{width:100%;height:100%;display:block}
+  .nav-chart .axis-text{font:600 9px 'JetBrains Mono',monospace;fill:var(--muted);letter-spacing:.05em}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;padding:0 4px;font-size:10.5px;color:var(--muted);letter-spacing:.04em}
+  .legend .lg{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+  .legend .lg::before{content:"";width:10px;height:2px;background:var(--lg-c,var(--accent));border-radius:2px;display:inline-block}
+  .strat{display:grid;gap:8px;margin-top:6px}
+  .strat-row{padding:12px;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--chip) 40%,transparent);position:relative}
+  .strat-row .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:10px}
+  .strat-row .name{font-weight:700;font-size:12.5px;display:flex;align-items:center;gap:8px}
+  .strat-row .badge{font-size:9.5px;padding:2px 7px;border-radius:999px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--line);color:var(--muted);background:var(--chip)}
+  .strat-row .badge.run{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,var(--line));background:color-mix(in srgb,var(--good) 14%,transparent)}
+  .strat-row .badge.pause{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,var(--line));background:color-mix(in srgb,var(--warn) 14%,transparent)}
+  .strat-row .pnl{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:13.5px}
+  .strat-row .meta{font-size:11px;color:var(--muted);margin-top:3px}
+  .strat-row .last{margin-top:8px;padding:7px 9px;background:color-mix(in srgb,var(--accent) 8%,transparent);border-left:2px solid var(--accent);border-radius:0 5px 5px 0;font-size:11.5px;color:var(--text)}
+  .strat-row .last .lbl{display:inline-block;font-size:9px;font-weight:800;background:var(--accent);color:#0a1220;padding:1px 5px;border-radius:3px;margin-right:6px;letter-spacing:.06em;vertical-align:middle}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+  th,td{padding:8px 10px;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);text-align:left}
+  th{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom-color:var(--line)}
+  td.num,th.num{text-align:right;font-family:'JetBrains Mono',monospace}
+  tbody tr:hover{background:color-mix(in srgb,var(--chip) 50%,transparent)}
+  .sym-cell{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11.5px}
+  .strat-cell{font-size:10.5px;color:var(--muted);padding:1px 6px;background:var(--chip);border-radius:4px;display:inline-block}
+  .feed-list{margin-top:8px;display:grid;gap:0}
+  .feed-row{display:grid;grid-template-columns:74px 1fr 90px;gap:14px;padding:9px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);align-items:start;font-size:12px}
+  .feed-row:last-child{border-bottom:0}
+  .feed-time{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted)}
+  .feed-action{color:var(--text);line-height:1.5}
+  .feed-action .head{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .feed-action .sym{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11.5px}
+  .feed-action .side-tag{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.06em}
+  .feed-action .side-tag.buy,.feed-action .side-tag.add{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+  .feed-action .side-tag.sell,.feed-action .side-tag.reduce,.feed-action .side-tag.close{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+  .feed-action .side-tag.hold{background:color-mix(in srgb,var(--muted) 18%,transparent);color:var(--muted)}
+  .feed-action .ai{margin-top:5px;padding:6px 9px;background:color-mix(in srgb,var(--accent) 8%,transparent);border-left:2px solid var(--accent);border-radius:0 5px 5px 0;font-size:11px;color:var(--muted);line-height:1.45}
+  .feed-action .ai .lbl{display:inline-block;font-size:9px;font-weight:800;background:var(--accent);color:#0a1220;padding:1px 5px;border-radius:3px;margin-right:6px;letter-spacing:.06em;vertical-align:middle}
+  .feed-pnl{font-family:'JetBrains Mono',monospace;font-size:12px;text-align:right;font-weight:700;padding-top:3px}
+  .risk{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:6px}
+  .risk-cell .v{font-size:18px;margin-top:3px}
+  .bar{height:5px;border-radius:999px;background:color-mix(in srgb,var(--line) 80%,transparent);overflow:hidden;margin-top:8px}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:var(--w,50%);border-radius:999px}
+  .guard{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:8px}
+  .guard-cell{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--chip)}
+  .guard-cell .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .guard-cell .v{margin-top:3px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700}
+  .guard-cell .meta{font-size:10px;color:var(--muted);margin-top:2px}
+  .guard-cell.ok::before{content:"✓ ";color:var(--good);font-weight:800}
+  .guard-cell.warn{border-color:color-mix(in srgb,var(--warn) 50%,var(--line))}
+  .guard-cell.warn::before{content:"⚠ ";color:var(--warn);font-weight:800}
+  .footer-bar{margin-top:18px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--chip);display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:.04em}
+  @media (max-width:1280px){.layout{grid-template-columns:1fr}.risk{grid-template-columns:repeat(3,1fr)}.guard{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:900px){.hero{grid-template-columns:repeat(2,1fr)}.app{grid-template-columns:84px 1fr}.brand-name,.brand-sub,.nav button>span,.nav-group,.auth-pill{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="brand-mark">📈</div>
+      <div>
+        <div class="brand-name">US <span style="color:var(--accent)">EQUITY</span></div>
+        <div class="brand-sub">Alpaca AI Trader</div>
+      </div>
+    </div>
+    <div class="nav-group">Trading</div>
+    <nav class="nav">
+      <button class="active"><span class="ico">◐</span><span>Overview</span></button>
+      <button><span class="ico">⌃</span><span>Performance</span></button>
+      <button><span class="ico">≡</span><span>Holdings ({{ ctx.holdings.count }})</span></button>
+      <button><span class="ico">⚡</span><span>Execution Feed</span></button>
+      <button><span class="ico">⚠</span><span>Risk &amp; Guardrails</span></button>
+    </nav>
+    <div class="nav-group">Strategies</div>
+    <nav class="nav">
+      {% for s in ctx.strategies %}
+      <button><span class="ico">{{ '▶' if s.status_class == 'run' else '⏸' }}</span><span>{{ s.name }}</span></button>
+      {% endfor %}
+    </nav>
+    <div class="nav-group">Mode</div>
+    <div class="auth-pill"><span class="dot"></span><span class="label">{{ ctx.meta.authorization_label }}</span><span class="mode">{{ ctx.meta.mode }}</span></div>
+    <div class="nav-group">Operations</div>
+    <nav class="nav">
+      <button><span class="ico">⌬</span><span>Alpaca Account</span></button>
+      <button><span class="ico">⚙</span><span>Strategy Lab</span></button>
+      <button><span class="ico">⌖</span><span>Audit Log</span></button>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <div class="top-left">
+        <div class="status"><span class="dot-live"></span><span>{{ ctx.meta.market_label }} · Latency <b>{{ ctx.meta.latency_ms }}ms</b></span></div>
+        <div class="status"><span>Source: Cboe One · IEX</span></div>
+        <div class="status"><span>Account: {{ 'Alpaca PAPER' if ctx.meta.is_paper else 'Alpaca LIVE' }} · #{{ ctx.meta.account_number }}</span></div>
+      </div>
+      <div class="controls">
+        <div class="seg" id="mode"><button data-mode="live" class="{{ 'active' if not ctx.meta.is_paper else '' }}">LIVE</button><button data-mode="paper" class="{{ 'active' if ctx.meta.is_paper else '' }}">PAPER</button></div>
+        <button class="chip danger" id="kill">⏹ KILL SWITCH</button>
+        <div class="seg" id="theme"><button data-theme="dark" class="active">Dark</button><button data-theme="light">Light</button></div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin:6px 0 12px">
+      <div>
+        <h1 class="page-title">US Equity Desk <span class="tag">Alpaca</span></h1>
+        <p class="page-sub">{{ ctx.meta.generated_at }} · {{ ctx.strategies|length }} strategies · {{ ctx.holdings.count }} positions · 由 {{ ctx.meta.agent_id }} 自主执行</p>
+      </div>
+    </div>
+
+    <!-- Hero KPIs -->
+    <div class="hero">
+      <div class="card"><div class="k">投资组合价值</div><div class="v">{{ ctx.account.equity_fmt }}</div><div class="meta">cash {{ ctx.account.cash_fmt }} · buying power {{ ctx.account.buying_power_fmt }} ({{ ctx.account.buying_power_mult }})</div></div>
+      <div class="card"><div class="k">日内盈亏</div><div class="v {{ ctx.account.day_pl_class }}">{{ ctx.account.day_pl_fmt }}</div><div class="meta {{ ctx.account.day_pl_class }}">{{ ctx.account.day_pl_pct_fmt }} · {{ ctx.feed|length }} 笔今日</div></div>
+      <div class="card"><div class="k">YTD vs SPY</div><div class="v good">{{ ctx.metrics.ytd_fmt }}</div><div class="meta">SPY {{ ctx.metrics.spy_ytd_fmt }} · α {{ ctx.metrics.alpha_fmt }}</div></div>
+      <div class="card"><div class="k">夏普 (1Y) / Max DD</div><div class="v">{{ ctx.metrics.sharpe }} <span style="color:var(--muted);font-size:14px">/ {{ ctx.metrics.max_dd_fmt }}</span></div><div class="meta">Sortino {{ ctx.metrics.sortino }} · VaR {{ ctx.metrics.var_fmt }}</div></div>
+    </div>
+
+    <!-- NAV chart + strategies -->
+    <section class="layout">
+      <article class="card">
+        <div class="section-head">
+          <div class="section-title">投资组合净值 · NAV vs SPY (YTD)</div>
+          <div class="section-sub">{{ ctx.nav.nav_value }} NAV · α {{ ctx.nav.alpha_fmt }}</div>
+        </div>
+        <div class="nav-chart">
+          <svg viewBox="0 0 720 280" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="lg" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#4be2ad" stop-opacity="0.36"/>
+                <stop offset="100%" stop-color="#4be2ad" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="lg2" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#8f8dff" stop-opacity="0.18"/>
+                <stop offset="100%" stop-color="#8f8dff" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <g stroke="var(--line)" stroke-dasharray="2 4" opacity="0.5">
+              <line x1="40" y1="60"  x2="700" y2="60"/>
+              <line x1="40" y1="120" x2="700" y2="120"/>
+              <line x1="40" y1="180" x2="700" y2="180"/>
+              <line x1="40" y1="240" x2="700" y2="240"/>
+            </g>
+            <g class="axis-text" text-anchor="middle">
+              {% for xl in ctx.nav.x_labels %}<text x="{{ xl.x }}" y="262">{{ xl.text }}</text>{% endfor %}
+            </g>
+            <g class="axis-text" text-anchor="end">
+              {% for yl in ctx.nav.y_labels %}<text x="36" y="{{ yl.y }}">{{ yl.text }}</text>{% endfor %}
+            </g>
+            <polygon fill="url(#lg2)" points="{{ ctx.nav.spy_area }}" />
+            <polyline fill="none" stroke="#8f8dff" stroke-width="1.8" stroke-dasharray="4 4" points="{{ ctx.nav.spy_line }}" />
+            <polygon fill="url(#lg)" points="{{ ctx.nav.fund_area }}" />
+            <polyline fill="none" stroke="#4be2ad" stroke-width="2.5" stroke-linejoin="round" points="{{ ctx.nav.fund_line }}" />
+            <circle cx="{{ ctx.nav.last_x }}" cy="{{ ctx.nav.last_y }}" r="5" fill="#4be2ad" stroke="#0a1220" stroke-width="2"/>
+            <text x="{{ ctx.nav.last_x - 6 }}" y="{{ ctx.nav.last_y - 8 }}" text-anchor="end" font-family="JetBrains Mono" font-size="10" fill="#4be2ad" font-weight="700">{{ ctx.nav.last_label }}</text>
+          </svg>
+        </div>
+        <div class="legend">
+          <span class="lg" style="--lg-c:#4be2ad">US Equity Desk · {{ ctx.metrics.ytd_fmt }} YTD</span>
+          <span class="lg" style="--lg-c:#8f8dff">SPY benchmark · {{ ctx.metrics.spy_ytd_fmt }} YTD</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="section-head">
+          <div class="section-title">在跑策略 · Active Strategies</div>
+          <div class="section-sub">{{ ctx.strategies|selectattr('status_class','equalto','run')|list|length }} running · {{ ctx.strategies|selectattr('status_class','equalto','pause')|list|length }} paused</div>
+        </div>
+        <div class="strat">
+          {% for s in ctx.strategies %}
+          <div class="strat-row">
+            <div class="head">
+              <div class="name">{{ s.name }} <span class="badge {{ s.status_class }}">{{ s.status }}</span></div>
+              <div class="pnl {{ s.pnl_class }}">{{ s.pnl_fmt }}</div>
+            </div>
+            <div class="meta">{{ s.meta }}</div>
+            <div class="last"><span class="lbl">{{ s.last_label }}</span>{{ s.last_text }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+    </section>
+
+    <!-- Holdings -->
+    <article class="card" style="margin-top:12px">
+      <div class="section-head">
+        <div class="section-title">当前持仓 · Holdings ({{ ctx.holdings.count }})</div>
+        <div class="section-sub">live mark-to-market · cost basis FIFO</div>
+      </div>
+      <table>
+        <thead>
+          <tr><th>代码</th><th>策略</th><th class="num">数量</th><th class="num">成本</th><th class="num">现价</th><th class="num">市值</th><th class="num">未实现盈亏</th><th class="num">% 仓位</th></tr>
+        </thead>
+        <tbody>
+          {% for p in ctx.holdings.rows %}
+          <tr>
+            <td class="sym-cell">{{ p.symbol }}</td>
+            <td><span class="strat-cell">{{ p.strategy }}</span></td>
+            <td class="num">{{ p.qty }}</td>
+            <td class="num">{{ p.avg_fmt }}</td>
+            <td class="num">{{ p.cur_fmt }}</td>
+            <td class="num">{{ p.mv_fmt }}</td>
+            <td class="num {{ p.upl_class }}">{{ p.upl_fmt }}</td>
+            <td class="num">{{ p.weight_fmt }}</td>
+          </tr>
+          {% endfor %}
+          <tr style="background:color-mix(in srgb,var(--chip) 70%,transparent);font-weight:700">
+            <td colspan="5" style="padding-top:14px;border-top:2px solid var(--accent)">合计 · {{ ctx.holdings.count }} 仓 · 占总组合 {{ ctx.holdings.total_weight_fmt }}</td>
+            <td class="num" style="padding-top:14px;border-top:2px solid var(--accent)">{{ ctx.holdings.total_mv_fmt }}</td>
+            <td class="num {{ ctx.holdings.total_upl_class }}" style="padding-top:14px;border-top:2px solid var(--accent)">{{ ctx.holdings.total_upl_fmt }}</td>
+            <td class="num" style="padding-top:14px;border-top:2px solid var(--accent)">{{ ctx.holdings.total_weight_fmt }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </article>
+
+    <!-- Execution feed -->
+    <article class="card" style="margin-top:12px">
+      <div class="section-head">
+        <div class="section-title">实时执行流 · Execution Feed</div>
+        <div class="section-sub">{{ ctx.meta.agent_id }} · 最近 {{ ctx.feed|length }} 条</div>
+      </div>
+      <div class="feed-list">
+        {% for e in ctx.feed %}
+        <div class="feed-row">
+          <span class="feed-time">{{ e.time }}</span>
+          <span class="feed-action">
+            <div class="head"><span class="side-tag {{ e.side }}">{{ e.side_label }}</span><span class="sym">{{ e.symbol }}</span><span style="color:var(--muted);font-size:11px">{{ e.detail }}</span></div>
+            <div class="ai"><span class="lbl">AI</span>{{ e.reasoning }}</div>
+          </span>
+          <span class="feed-pnl {{ e.pnl_class }}">{{ e.pnl_fmt }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <!-- Risk + Guardrails -->
+    <div class="row-2">
+      <article class="card">
+        <div class="section-head">
+          <div class="section-title">风控驾驶舱 · Risk Cockpit</div>
+          <div class="section-sub">portfolio-level · US Equity only</div>
+        </div>
+        <div class="risk">
+          {% for r in ctx.risk %}
+          <div class="risk-cell">
+            <div class="k">{{ r.k }}</div>
+            <div class="v">{{ r.v }}</div>
+            <div class="bar"><i style="--w:{{ r.w_pct }}%"></i></div>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+      <article class="card">
+        <div class="section-head">
+          <div class="section-title">护栏 · Guardrails</div>
+          <div class="section-sub">{{ ctx.meta.authorization_label }} · 所有自动交易必须满足</div>
+        </div>
+        <div class="guard">
+          {% for g in ctx.guardrails %}
+          <div class="guard-cell {{ 'ok' if g.ok else 'warn' }}">
+            <div class="k">{{ g.k }}</div>
+            <div class="v">{{ g.v }}</div>
+            <div class="meta">{{ g.meta }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+    </div>
+
+    <div class="footer-bar">
+      <span>US EQUITY DESK · {{ ctx.meta.agent_id }} · {{ ctx.meta.skill_version }} · NAV computed T+0</span>
+      <span>build {{ ctx.meta.build_date }} · template fixed by claw-dashboard-skill</span>
+    </div>
+  </main>
+</div>
+
+<script>
+  // Theme + mode toggles only. NO fake number jitter — the real
+  // dashboard renders server-side per request with live data.
+  document.querySelectorAll("#theme button").forEach(b => b.onclick = () => {
+    document.documentElement.setAttribute("data-theme", b.dataset.theme);
+    document.querySelectorAll("#theme button").forEach(x => x.classList.toggle("active", x === b));
+  });
+  document.querySelectorAll("#mode button").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#mode button").forEach(x => x.classList.toggle("active", x === b));
+  });
+  document.getElementById("kill").onclick = () => {
+    if (!confirm("KILL SWITCH 将立即清仓 US Equity Desk 所有持仓并暂停所有策略。确认？")) return;
+    alert("(stub) KILL SWITCH 信号已发送 — 实际熔断由 agent 侧执行");
+  };
+</script>
+</body>
+</html>
