@@ -152,6 +152,22 @@ When we update the agent's SKILL.md / USER.md, it must do the following. The das
 6. **On guardrail / mode configuration** (during onboarding S5a/S5b or when user changes settings)
    `INSERT OR REPLACE` `agent_config` rows for the well-known keys above with `category='guardrail'` / `'mode'`.
 
+7. **On Alpaca credential setup** (right after the user provides the key)
+   `INSERT OR REPLACE` these `agent_config` rows so the dashboard hub-app
+   (a separate process that can't see the agent's injected env vars) can
+   construct its read-only Alpaca client:
+
+   | key | value_type | category |
+   |-----|-----------|----------|
+   | `alpaca_key` | string | mode |
+   | `alpaca_secret` | string | mode |
+   | `alpaca_paper` | bool | mode |
+
+   This is not a *new* plaintext exposure: the alpaca skill already keeps
+   the same secret in its own `data/alpaca-skill.db` on the same device.
+   shared.db is the same trust boundary. If `alpaca_key` is absent the
+   dashboard renders a "not configured" page instead of erroring.
+
 Everything else the dashboard needs (equity, cash, buying power, positions, fills, NAV history, SPY benchmark) comes **straight from Alpaca** and is never written to shared.db.
 
 ---

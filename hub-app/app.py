@@ -114,6 +114,17 @@ async def module_page(request: Request, module_id: str):
     })
 
 
+# ── Fixed per-desk dashboards ──
+try:
+    from routes.us_equity import router as us_equity_router
+
+    app.include_router(us_equity_router)
+except Exception as _e:  # noqa: BLE001 — never block the hub on a desk route
+    import sys
+
+    print(f"[hub] us-equity route not loaded: {_e}", file=sys.stderr)
+
+
 def main():
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=3000)
